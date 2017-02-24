@@ -1,45 +1,24 @@
 package main
 
 import (
-	"io/ioutil"
 	"net/http"
 	"html/template"
-	"strings"
-	"path/filepath"
 	"regexp"
 	"log"
+	"github.com/davew1977/go-experiments/wiki/pkg/wiki"
 	"fmt"
 	"github.com/spf13/viper"
+	"strings"
 )
 
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
-var pages []string
+var pageService wiki.PageService
 
 func init() {
 	loadConfig()
-	initPages()
+	pageService = wiki.NewFilePageService()
 }
 
-type Page struct {
-	Title string
-	Body  []byte
-}
-
-func (p *Page) save() error {
-	filename := fmt.Sprintf("%s/%s.txt", viper.Get("paths.data"), p.Title)
-	return ioutil.WriteFile(filename, p.Body, 0600)
-}
-func (p *Page) FormatBody() template.HTML {
-	html := strings.Replace(string(p.Body), "\n", "<br>", -1)
-	html = string(regexp.MustCompile(strings.Join(pages, "|")).ReplaceAllFunc([]byte(html), func(r []byte) []byte {
-		if(p.Title == string(r)) {
-			return r
-		}
-		return []byte(fmt.Sprintf("<a href='/view/%s'>%s</a>", r, r))
-
-	}))
-	return template.HTML(html);
-}
 
 
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
@@ -53,28 +32,22 @@ func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.Hand
 	}
 }
 
-func loadPage(title string) (*Page, error) {
-	filename := fmt.Sprintf("%s/%s.txt", viper.Get("paths.data"), title)
-	body, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return &Page{Title: title, Body: body}, nil
-}
-
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
-	p, err := loadPage(title)
+	p, err := pageService.Load(title)
 	if err != nil {
 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
 		return
 	}
-	renderTemplate(w, "view", p)
+	renderTemplate(w, "view", map[string]interface{}{
+	   	"Title" : p.Title,
+		"Body" : pageFormat(p, pageService.(wiki.RenderContext)),
+	})
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request, title string) {
-	p, err := loadPage(title)
+	p, err := pageService.Load(title)
 	if err != nil {
-		p = &Page{Title: title}
+		p = &wiki.Page{Title: title}
 	}
 	renderTemplate(w, "edit", p)
 }
@@ -88,28 +61,16 @@ func renderTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 
 func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 	body := r.FormValue("body")
-	p := &Page{Title: title, Body: []byte(body)}
-	p.save()
-	initPages()
+	p := &wiki.Page{Title: title, Body: []byte(body)}
+	pageService.Save(p)
 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
 
-	 log.Print(pages)
+	pages := pageService.ListPages()
+	log.Print(pages)
 	renderTemplate(w, "list", pages)
-}
-
-func initPages() {
-
-	pattern := fmt.Sprintf("%s/*.txt", viper.Get("paths.data"))
-	log.Print(pattern)
-	files, _ := filepath.Glob(pattern)
-	pages = make([]string, len(files))
-	for i,f := range(files) {
-		pages[i] = strings.Split(strings.Split(f, ".")[0], "/")[1]
-		//log.Print(f)
-	}
 }
 
 func main() {
@@ -131,4 +92,15 @@ func loadConfig() {
 		log.Fatalf("could not read config file from %s.", viper.ConfigFileUsed())
 	}
         log.Print(viper.Get("paths.templates"))
+}
+func pageFormat(p *wiki.Page, c wiki.RenderContext) template.HTML {
+	html := strings.Replace(string(p.Body), "\n", "<br>", -1)
+	html = string(regexp.MustCompile(strings.Join(c.PageNames(), "|")).ReplaceAllFunc([]byte(html), func(r []byte) []byte {
+		if(p.Title == string(r)) {
+			return r
+		}
+		return []byte(fmt.Sprintf("<a href='/view/%s'>%s</a>", r, r))
+
+	}))
+	return template.HTML(html);
 }
