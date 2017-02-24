@@ -19,8 +19,6 @@ func init() {
 	pageService = wiki.NewFilePageService()
 }
 
-
-
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPath.FindStringSubmatch(r.URL.Path)
@@ -40,7 +38,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	}
 	renderTemplate(w, "view", map[string]interface{}{
 	   	"Title" : p.Title,
-		"Body" : pageFormat(p, pageService.(wiki.RenderContext)),
+		"Body" : pageFormat(p, pageService.(wiki.RenderContext)), //a bit like a cast - we know the runtime type of page service will satisfy RenderContext
 	})
 }
 
@@ -81,6 +79,7 @@ func main() {
 	http.HandleFunc("/list/", listHandler)
 	http.ListenAndServe(":8080", nil)
 }
+
 func loadConfig() {
 	viper.SetEnvPrefix("wiki")
 	viper.SetConfigName("wiki")
@@ -93,6 +92,7 @@ func loadConfig() {
 	}
         log.Print(viper.Get("paths.templates"))
 }
+
 func pageFormat(p *wiki.Page, c wiki.RenderContext) template.HTML {
 	html := strings.Replace(string(p.Body), "\n", "<br>", -1)
 	html = string(regexp.MustCompile(strings.Join(c.PageNames(), "|")).ReplaceAllFunc([]byte(html), func(r []byte) []byte {
