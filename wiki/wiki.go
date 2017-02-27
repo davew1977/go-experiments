@@ -16,10 +16,11 @@ var pageService wiki.PageService
 
 func init() {
 	loadConfig()
-	pageService = wiki.NewFilePageService()
+	//pageService = wiki.NewFilePageService()
+	pageService = wiki.NewDbPageService()
 }
 
-func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPath.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -33,11 +34,11 @@ func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.Hand
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := pageService.Load(title)
 	if err != nil {
-		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
+		http.Redirect(w, r, "/edit/" + title, http.StatusFound)
 		return
 	}
 	renderTemplate(w, "view", map[string]interface{}{
-	   	"Title" : p.Title,
+		"Title" : p.Title,
 		"Body" : pageFormat(p, pageService.(wiki.RenderContext)), //a bit like a cast - we know the runtime type of page service will satisfy RenderContext
 	})
 }
@@ -61,7 +62,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 	body := r.FormValue("body")
 	p := &wiki.Page{Title: title, Body: []byte(body)}
 	pageService.Save(p)
-	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+	http.Redirect(w, r, "/view/" + title, http.StatusFound)
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +78,10 @@ func main() {
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
 	http.HandleFunc("/list/", listHandler)
-	http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":8081", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func loadConfig() {
@@ -90,13 +94,13 @@ func loadConfig() {
 	if err != nil {
 		log.Fatalf("could not read config file from %s.", viper.ConfigFileUsed())
 	}
-        log.Print(viper.Get("paths.templates"))
+	log.Print(viper.Get("paths.templates"))
 }
 
 func pageFormat(p *wiki.Page, c wiki.RenderContext) template.HTML {
 	html := strings.Replace(string(p.Body), "\n", "<br>", -1)
 	html = string(regexp.MustCompile(strings.Join(c.PageNames(), "|")).ReplaceAllFunc([]byte(html), func(r []byte) []byte {
-		if(p.Title == string(r)) {
+		if (p.Title == string(r)) {
 			return r
 		}
 		return []byte(fmt.Sprintf("<a href='/view/%s'>%s</a>", r, r))

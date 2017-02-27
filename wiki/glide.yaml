@@ -1,3 +1,3 @@
-package: github.com/davew1977/vipertest
+package: github.com/davew1977/wiki
 import:
 - package: github.com/spf13/viper
