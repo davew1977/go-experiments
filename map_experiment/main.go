@@ -22,4 +22,13 @@ func main() {
 	fmt.Println(aMap)
 
 	fmt.Println(len(aMap))
+
+	fmt.Println(BinaryStringFromByte(1))
+	fmt.Println(BinaryStringFromByte(255))
+	fmt.Println(BinaryStringFromByte(16))
+	fmt.Println(BinaryStringFromByte(128))
+}
+
+func BinaryStringFromByte(b byte) string {
+	return fmt.Sprintf("%08b", b) //different from monolith equivalent because go byte is unsigned
 }
