@@ -90,7 +90,7 @@ func (f *dbPageService) Save(p *Page) error {
 		log.Fatal(err)
 	}
 	rowCount, _ := res.RowsAffected()
-	if(rowCount == 0) {
+	if rowCount == 0 {
 		_, err :=f.db.Exec("insert into Page values (?,?)", p.Title, p.Body)
 		if err != nil {
 			log.Fatal(err)
